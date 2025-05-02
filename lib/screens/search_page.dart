@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:world_clock_app/controllers/clock_controller.dart';
 import 'package:world_clock_app/models/timezone_model.dart';
+import 'package:flutter_staggered_animations/flutter_staggered_animations.dart';
 
 class SearchPage extends StatelessWidget {
   final ClockController controller = Get.find();
@@ -11,6 +12,8 @@ class SearchPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
     return Scaffold(
       extendBodyBehindAppBar: true,
       appBar: AppBar(
@@ -18,21 +21,24 @@ class SearchPage extends StatelessWidget {
         elevation: 0,
         title: Text(
           'Search Cities',
-          style: theme.textTheme.titleLarge?.copyWith(color: Colors.white),
+          style: theme.textTheme.titleLarge?.copyWith(
+            color: Colors.white,
+            fontWeight: FontWeight.w600,
+          ),
         ),
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.white),
+          icon: const Icon(Icons.arrow_back_rounded, color: Colors.white),
           onPressed: () => Get.back(),
         ),
         flexibleSpace: Container(
           decoration: BoxDecoration(
             gradient: LinearGradient(
               colors:
-                  theme.brightness == Brightness.dark
+                  isDark
                       ? [Colors.grey.shade900, Colors.black]
-                      : [Colors.blue.shade800, Colors.blue.shade600],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
+                      : [Colors.blue.shade800, const Color.fromARGB(255, 30, 229, 110)],
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
             ),
           ),
         ),
@@ -54,16 +60,26 @@ class _SearchContent extends StatefulWidget {
 class _SearchContentState extends State<_SearchContent> {
   String filter = '';
   final searchController = TextEditingController();
+  final FocusNode _searchFocusNode = FocusNode();
+
+  @override
+  void initState() {
+    super.initState();
+    _searchFocusNode.requestFocus();
+  }
 
   @override
   void dispose() {
     searchController.dispose();
+    _searchFocusNode.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
     final filteredCities =
         widget.controller.availableTimezones
             .where((tz) => tz.city.toLowerCase().contains(filter.toLowerCase()))
@@ -73,9 +89,9 @@ class _SearchContentState extends State<_SearchContent> {
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors:
-              theme.brightness == Brightness.dark
-                  ? [Colors.black, Colors.grey.shade900]
-                  : [const Color(0xFFe0f7fa), const Color(0xFFf5f5f5)],
+              isDark
+                  ? [Colors.grey.shade900, Colors.black]
+                  : [Colors.blue.shade50, const Color.fromARGB(255, 187, 251, 211)],
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
         ),
@@ -84,29 +100,60 @@ class _SearchContentState extends State<_SearchContent> {
         children: [
           const SizedBox(height: 90),
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20),
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
             child: Material(
-              borderRadius: BorderRadius.circular(12),
-              elevation: 4,
-              shadowColor: Colors.black12,
-              child: TextField(
-                controller: searchController,
-                autofocus: true,
-                decoration: InputDecoration(
-                  hintText: 'Search cities...',
-                  prefixIcon: const Icon(Icons.search),
-                  filled: true,
-                  fillColor: theme.cardColor,
-                  contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 14,
-                  ),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide.none,
+              borderRadius: BorderRadius.circular(16),
+              elevation: 2,
+              shadowColor: Colors.black.withOpacity(0.1),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 300),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(
+                    color: theme.colorScheme.primary.withOpacity(0.2),
+                    width: 1,
                   ),
                 ),
-                onChanged: (value) => setState(() => filter = value),
+                child: TextField(
+                  controller: searchController,
+                  focusNode: _searchFocusNode,
+                  autofocus: true,
+                  decoration: InputDecoration(
+                    hintText: 'Search by city name...',
+                    hintStyle: theme.textTheme.bodyMedium?.copyWith(
+                      color: theme.hintColor.withOpacity(0.7),
+                    ),
+                    prefixIcon: Icon(
+                      Icons.search_rounded,
+                      color: theme.colorScheme.primary,
+                    ),
+                    filled: true,
+                    fillColor: theme.cardColor,
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 20,
+                      vertical: 18,
+                    ),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(16),
+                      borderSide: BorderSide.none,
+                    ),
+                    suffixIcon:
+                        filter.isNotEmpty
+                            ? IconButton(
+                              icon: Icon(
+                                Icons.close_rounded,
+                                color: theme.hintColor,
+                              ),
+                              onPressed: () {
+                                searchController.clear();
+                                setState(() => filter = '');
+                              },
+                            )
+                            : null,
+                  ),
+                  style: theme.textTheme.bodyLarge,
+                  onChanged: (value) => setState(() => filter = value),
+                ),
               ),
             ),
           ),
@@ -114,116 +161,168 @@ class _SearchContentState extends State<_SearchContent> {
           Expanded(
             child:
                 filteredCities.isEmpty
-                    ? Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          Icons.location_off,
-                          size: 60,
-                          color: Colors.grey.shade400,
+                    ? _buildEmptyState(theme)
+                    : AnimationLimiter(
+                      child: ListView.builder(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 8,
                         ),
-                        const SizedBox(height: 16),
-                        Text(
-                          'No cities found',
-                          style: theme.textTheme.titleMedium,
-                        ),
-                        const SizedBox(height: 6),
-                        Text(
-                          'Try a different name',
-                          style: theme.textTheme.bodySmall,
-                        ),
-                      ],
-                    )
-                    : ListView.builder(
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      itemCount: filteredCities.length,
-                      itemBuilder: (context, index) {
-                        final tz = filteredCities[index];
-                        final isSelected = widget.controller.selectedTimezones
-                            .contains(tz);
+                        physics: const BouncingScrollPhysics(),
+                        itemCount: filteredCities.length,
+                        itemBuilder: (context, index) {
+                          final tz = filteredCities[index];
+                          RxBool isSelected =
+                              widget.controller.selectedTimezones
+                                  .contains(tz)
+                                  .obs;
 
-                        return AnimatedContainer(
-                          duration: const Duration(milliseconds: 300),
-                          margin: const EdgeInsets.symmetric(vertical: 6),
-                          decoration: BoxDecoration(
-                            color:
-                                isSelected
-                                    ? theme.colorScheme.secondary.withOpacity(
-                                      0.1,
-                                    )
-                                    : theme.cardColor.withOpacity(0.95),
-                            borderRadius: BorderRadius.circular(16),
-                            // boxShadow: [
-                            //   BoxShadow(
-                            //     color: Colors.black12,
-                            //     blurRadius: 6,
-                            //     offset: const Offset(0, 3),
-                            //   ),
-                            // ],
-                          ),
-                          child: ListTile(
-                            contentPadding: const EdgeInsets.symmetric(
-                              horizontal: 16,
-                              vertical: 12,
-                            ),
-                            leading: CircleAvatar(
-                              backgroundColor: theme.colorScheme.primary
-                                  .withOpacity(0.1),
-                              child: Icon(
-                                Icons.location_on,
-                                color: theme.colorScheme.primary,
-                              ),
-                            ),
-                            title: Text(
-                              tz.city,
-                              style: theme.textTheme.bodyLarge?.copyWith(
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                            subtitle: Text(
-                              'UTC ${tz.utcOffset >= 0 ? '+' : ''}${tz.utcOffset}',
-                              style: theme.textTheme.bodySmall,
-                            ),
-                            trailing: AnimatedSwitcher(
-                              duration: const Duration(milliseconds: 300),
-                              child:
-                                  isSelected
-                                      ? Icon(
-                                        Icons.check_circle,
-                                        color: theme.colorScheme.secondary,
-                                        key: const ValueKey('check'),
-                                      )
-                                      : const Icon(
-                                        Icons.add_circle_outline,
-                                        color: Colors.blue,
-                                        key: ValueKey('add'),
-                                      ),
-                            ),
-                            onTap: () {
-                              if (!isSelected) {
-                                widget.controller.addTimezone(tz);
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(
-                                    content: Text(
-                                      'Added ${tz.city} to your cities',
-                                    ),
-                                    backgroundColor: Colors.green.shade600,
-                                    behavior: SnackBarBehavior.floating,
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(10),
-                                    ),
-                                    duration: const Duration(seconds: 2),
+                          return AnimationConfiguration.staggeredList(
+                            position: index,
+                            duration: const Duration(milliseconds: 375),
+                            child: SlideAnimation(
+                              verticalOffset: 50.0,
+                              child: FadeInAnimation(
+                                child: Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 6,
                                   ),
-                                );
-                              }
-                            },
-                          ),
-                        );
-                      },
+                                  child: _buildCityCard(theme, tz),
+                                ),
+                              ),
+                            ),
+                          );
+                        },
+                      ),
                     ),
           ),
         ],
       ),
     );
+  }
+
+  Widget _buildEmptyState(ThemeData theme) {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            Icons.travel_explore_rounded,
+            size: 64,
+            color: theme.colorScheme.primary.withOpacity(0.5),
+          ),
+          const SizedBox(height: 16),
+          Text(
+            'No cities found',
+            style: theme.textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Try searching for a different city',
+            style: theme.textTheme.bodyMedium?.copyWith(color: theme.hintColor),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCityCard(ThemeData theme, TimezoneModel tz) {
+    return Obx(() {
+      final isSelected = widget.controller.selectedTimezones.contains(tz);
+
+      return Card(
+        elevation: 0,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(16),
+          onTap: () => _handleCitySelection(tz, isSelected, context),
+          child: Padding(
+            padding: const EdgeInsets.all(12),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.primary.withOpacity(0.1),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    Icons.location_on_rounded,
+                    color: theme.colorScheme.primary,
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        tz.city,
+                        style: theme.textTheme.bodyLarge?.copyWith(
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        '${tz.country} • UTC ${tz.utcOffset >= 0 ? '+' : ''}${tz.utcOffset}',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.hintColor,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 300),
+                  transitionBuilder:
+                      (child, animation) =>
+                          ScaleTransition(scale: animation, child: child),
+                  child:
+                      isSelected
+                          ? Icon(
+                            Icons.check_circle_rounded,
+                            color: Colors.green.shade500,
+                            key: const ValueKey('selected'),
+                          )
+                          : Icon(
+                            Icons.add_circle_outline_rounded,
+                            color: theme.colorScheme.primary,
+                            key: const ValueKey('unselected'),
+                          ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    });
+  }
+
+  void _handleCitySelection(
+    TimezoneModel tz,
+    bool isSelected,
+    BuildContext context,
+  ) {
+    if (!isSelected) {
+      widget.controller.addTimezone(tz);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Added ${tz.city} to your cities'),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
+          backgroundColor: Colors.green.shade600,
+          duration: const Duration(seconds: 2),
+          action: SnackBarAction(
+            label: 'Undo',
+            textColor: Colors.white,
+            onPressed: () => widget.controller.removeTimezone(tz),
+          ),
+        ),
+      );
+    }
   }
 }

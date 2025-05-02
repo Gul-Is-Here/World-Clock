@@ -1,24 +1,27 @@
 import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import '../models/timezone_model.dart';
 import 'package:get/get.dart';
+import '../models/timezone_model.dart';
 import '../controllers/clock_controller.dart';
 
 class TimezoneCard extends StatefulWidget {
   final TimezoneModel timezone;
   final VoidCallback onDelete;
+  final VoidCallback? onTap;
   final VoidCallback? onSetAlarm;
   final VoidCallback? onShare;
   final bool isCurrentLocation;
+  final bool isPrimary;
 
   const TimezoneCard({
     required this.timezone,
     required this.onDelete,
+    this.onTap,
     this.onSetAlarm,
     this.onShare,
     this.isCurrentLocation = false,
+    this.isPrimary = false,
     super.key,
   });
 
@@ -28,24 +31,15 @@ class TimezoneCard extends StatefulWidget {
 
 class _TimezoneCardState extends State<TimezoneCard> {
   final ClockController _controller = Get.find();
-
-  bool _isExpanded = false;
-  late DateTime _localTime;
   late Timer _timer;
+  bool _isExpanded = false;
 
   @override
   void initState() {
     super.initState();
-    _updateLocalTime();
     _timer = Timer.periodic(const Duration(seconds: 1), (_) {
-      setState(() => _updateLocalTime());
+      if (mounted) setState(() {});
     });
-  }
-
-  void _updateLocalTime() {
-    _localTime = DateTime.now().toUtc().add(
-      Duration(hours: widget.timezone.utcOffset.toInt()),
-    );
   }
 
   @override
@@ -54,157 +48,358 @@ class _TimezoneCardState extends State<TimezoneCard> {
     super.dispose();
   }
 
+  void _handleTap() {
+    if (widget.onTap != null) {
+      widget.onTap!();
+    } else {
+      setState(() => _isExpanded = !_isExpanded);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
-    final isDayTime = _localTime.hour >= 6 && _localTime.hour <= 18;
     final isLight = theme.brightness == Brightness.light;
+    final colorScheme = theme.colorScheme;
+    final localTime = _controller.getLocalTime(widget.timezone);
+    final isDayTime = widget.timezone.isDaytime;
 
-    final timeColor =
-        isDayTime
-            ? (isLight ? colorScheme.primary : colorScheme.secondary)
-            : (isLight ? colorScheme.secondary : colorScheme.primary);
+    // Colors for light/dark themes
+    final bgColor =
+        isLight
+            ? isDayTime
+                ? colorScheme.primaryContainer
+                : colorScheme.secondaryContainer
+            : isDayTime
+            ? colorScheme.primaryContainer
+            : colorScheme.secondaryContainer;
 
-    final bgColor = theme.cardColor.withOpacity(0.95);
+    final textColor =
+        isLight
+            ? isDayTime
+                ? colorScheme.onPrimaryContainer
+                : colorScheme.onSecondaryContainer
+            : Colors.white;
+
+    final secondaryTextColor =
+        isLight
+            ? isDayTime
+                ? colorScheme.onPrimaryContainer.withOpacity(0.8)
+                : colorScheme.onSecondaryContainer.withOpacity(0.8)
+            : Colors.white.withOpacity(0.8);
+
+    final iconColor =
+        isLight
+            ? isDayTime
+                ? colorScheme.primary
+                : colorScheme.secondary
+            : Colors.white;
+
+    final buttonBgColor =
+        isLight
+            ? isDayTime
+                ? colorScheme.primary.withOpacity(0.1)
+                : colorScheme.secondary.withOpacity(0.1)
+            : Colors.white.withOpacity(0.1);
 
     return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      clipBehavior: Clip.antiAlias,
+      elevation: _isExpanded ? 8 : 4,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      margin: const EdgeInsets.symmetric(vertical: 0, horizontal: 4),
+      color: Colors.transparent,
       child: InkWell(
-        borderRadius: BorderRadius.circular(16),
-        onTap: () => setState(() => _isExpanded = !_isExpanded),
+        borderRadius: BorderRadius.circular(20),
+        onTap: _handleTap,
         child: Container(
-          color: bgColor,
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Row(
-                    children: [
-                      if (widget.isCurrentLocation)
-                        const Padding(
-                          padding: EdgeInsets.only(right: 8),
-                          child: Icon(
-                            Icons.my_location,
-                            size: 16,
-                            color: Colors.red,
-                          ),
-                        ),
-                      Container(
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          color: timeColor.withOpacity(0.2),
-                          shape: BoxShape.circle,
-                        ),
-                        child: Icon(
-                          isDayTime ? Icons.wb_sunny : Icons.nightlight_round,
-                          color: timeColor,
-                          size: 24,
-                        ),
-                      ),
-                    ],
-                  ),
-                  PopupMenuButton<String>(
-                    icon: Icon(Icons.more_vert, color: theme.iconTheme.color),
-                    itemBuilder:
-                        (context) => [
-                          if (widget.onSetAlarm != null)
-                            const PopupMenuItem(
-                              value: 'alarm',
-                              child: Text('Set Alarm'),
-                            ),
-                          if (widget.onShare != null)
-                            const PopupMenuItem(
-                              value: 'share',
-                              child: Text('Share Location'),
-                            ),
-                          const PopupMenuItem(
-                            value: 'delete',
-                            child: Text(
-                              'Delete',
-                              style: TextStyle(color: Colors.red),
-                            ),
-                          ),
-                        ],
-                    onSelected: (value) {
-                      if (value == 'delete') {
-                        widget.onDelete();
-                      } else if (value == 'alarm' &&
-                          widget.onSetAlarm != null) {
-                        widget.onSetAlarm!();
-                      } else if (value == 'share' && widget.onShare != null) {
-                        widget.onShare!();
-                      }
-                    },
-                  ),
-                ],
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(20),
+            color: bgColor,
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(isLight ? 0.05 : 0.1),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
               ),
-              const SizedBox(height: 8),
-              Text(
-                widget.timezone.city,
-                style: theme.textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                'UTC ${widget.timezone.utcOffset >= 0 ? '+' : ''}${widget.timezone.utcOffset}',
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: theme.hintColor,
-                ),
-              ),
-              const SizedBox(height: 16),
-              Text(
-                DateFormat('hh:mm:ss a').format(_localTime),
-                style: theme.textTheme.headlineMedium?.copyWith(
-                  fontWeight: FontWeight.bold,
-                  color: timeColor,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                DateFormat('EEE, MMM d, yyyy').format(_localTime),
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: theme.hintColor,
-                ),
-              ),
-              if (_isExpanded) ...[
-                const SizedBox(height: 16),
-                const Divider(height: 1),
-                const SizedBox(height: 12),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceAround,
-                  children: [
-                    if (widget.onSetAlarm != null)
-                      _buildActionButton(
-                        icon: Icons.alarm,
-                        label: 'Alarm',
-                        onTap: widget.onSetAlarm,
-                      ),
-                    if (widget.onShare != null)
-                      _buildActionButton(
-                        icon: Icons.share,
-                        label: 'Share',
-                        onTap: widget.onShare,
-                      ),
-                    _buildActionButton(
-                      icon: Icons.compare_arrows,
-                      label: 'Compare',
-                      onTap: _showComparisonDialog,
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-              ],
             ],
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _buildHeaderRow(theme, isDayTime, iconColor),
+                const SizedBox(height: 12),
+                _buildLocationInfo(theme, textColor, secondaryTextColor),
+                const SizedBox(height: 16),
+                _buildTimeDisplay(
+                  theme,
+                  localTime,
+                  textColor,
+                  secondaryTextColor,
+                ),
+                const SizedBox(height: 4),
+                _buildDateDisplay(theme, localTime, secondaryTextColor),
+                if (_isExpanded && widget.onTap == null)
+                  _buildExpandedContent(
+                    theme,
+                    buttonBgColor,
+                    iconColor,
+                    textColor,
+                  ),
+              ],
+            ),
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildHeaderRow(ThemeData theme, bool isDayTime, Color iconColor) {
+    final isLight = theme.brightness == Brightness.light;
+
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        // Location Indicator and Day/Night Icon
+        Row(
+          children: [
+            if (widget.isCurrentLocation)
+              Container(
+                padding: const EdgeInsets.all(4),
+                decoration: BoxDecoration(
+                  color: Colors.red.withOpacity(isLight ? 0.1 : 0.2),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(Icons.my_location, size: 16, color: Colors.red),
+              ),
+            if (widget.isCurrentLocation) const SizedBox(width: 8),
+            if (widget.isPrimary)
+              Container(
+                padding: const EdgeInsets.all(4),
+                decoration: BoxDecoration(
+                  color: Colors.amber.withOpacity(isLight ? 0.1 : 0.2),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(Icons.star, size: 16, color: Colors.amber),
+              ),
+            if (widget.isPrimary) const SizedBox(width: 8),
+            Container(
+              padding: const EdgeInsets.all(6),
+              decoration: BoxDecoration(
+                color: iconColor.withOpacity(isLight ? 0.2 : 0.3),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                isDayTime ? Icons.wb_sunny : Icons.nightlight_round,
+                color: iconColor,
+                size: 20,
+              ),
+            ),
+          ],
+        ),
+
+        // More Options Menu
+        PopupMenuButton<String>(
+          icon: Icon(Icons.more_vert, color: iconColor.withOpacity(0.8)),
+          itemBuilder:
+              (context) => [
+                if (widget.onSetAlarm != null)
+                  PopupMenuItem(
+                    value: 'alarm',
+                    child: ListTile(
+                      leading: Icon(Icons.alarm, color: theme.iconTheme.color),
+                      title: Text(
+                        'Set Alarm',
+                        style: theme.textTheme.bodyLarge,
+                      ),
+                    ),
+                  ),
+                if (widget.onShare != null)
+                  PopupMenuItem(
+                    value: 'share',
+                    child: ListTile(
+                      leading: Icon(Icons.share, color: theme.iconTheme.color),
+                      title: Text(
+                        'Share Location',
+                        style: theme.textTheme.bodyLarge,
+                      ),
+                    ),
+                  ),
+
+                PopupMenuItem(
+                  value: 'delete',
+                  child: ListTile(
+                    leading: Icon(Icons.delete, color: Colors.red),
+                    title: Text(
+                      'Delete',
+                      style: theme.textTheme.bodyLarge?.copyWith(
+                        color: Colors.red,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+          onSelected: (value) {
+            switch (value) {
+              case 'delete':
+                widget.onDelete();
+                break;
+              case 'alarm':
+                widget.onSetAlarm?.call();
+                break;
+              case 'share':
+                widget.onShare?.call();
+                break;
+              case 'set_primary':
+                // _controller.setAsPrimaryTimezone(widget.timezone);
+                break;
+            }
+          },
+        ),
+      ],
+    );
+  }
+
+  Widget _buildLocationInfo(
+    ThemeData theme,
+    Color textColor,
+    Color secondaryTextColor,
+  ) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          widget.timezone.city,
+          style: theme.textTheme.titleLarge?.copyWith(
+            fontWeight: FontWeight.w700,
+            color: textColor,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Row(
+          children: [
+            Text(
+              widget.timezone.country,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: secondaryTextColor,
+              ),
+            ),
+            const SizedBox(width: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: secondaryTextColor.withOpacity(0.2),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Text(
+                widget.timezone.formattedUtcOffset(),
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: textColor,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildTimeDisplay(
+    ThemeData theme,
+    DateTime localTime,
+    Color textColor,
+    Color secondaryTextColor,
+  ) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.end,
+      children: [
+        Text(
+          DateFormat('HH:mm').format(localTime),
+          style: theme.textTheme.displaySmall?.copyWith(
+            fontWeight: FontWeight.w800,
+            color: textColor,
+            height: 0.9,
+          ),
+        ),
+        const SizedBox(width: 4),
+        Padding(
+          padding: const EdgeInsets.only(bottom: 6),
+          child: Text(
+            DateFormat('ss').format(localTime),
+            style: theme.textTheme.titleMedium?.copyWith(
+              color: secondaryTextColor,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildDateDisplay(
+    ThemeData theme,
+    DateTime localTime,
+    Color secondaryTextColor,
+  ) {
+    return Text(
+      widget.timezone.formattedFullDate(),
+      style: theme.textTheme.bodyMedium?.copyWith(color: secondaryTextColor),
+    );
+  }
+
+  Widget _buildExpandedContent(
+    ThemeData theme,
+    Color buttonBgColor,
+    Color iconColor,
+    Color textColor,
+  ) {
+    return Column(
+      children: [
+        const SizedBox(height: 16),
+        Divider(height: 1, color: textColor.withOpacity(0.2)),
+        const SizedBox(height: 16),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceAround,
+          children: [
+            if (widget.onSetAlarm != null)
+              _buildActionButton(
+                icon: Icons.alarm,
+                label: 'Alarm',
+                onTap: widget.onSetAlarm,
+                bgColor: buttonBgColor,
+                iconColor: iconColor,
+                textColor: textColor,
+              ),
+            if (widget.onShare != null)
+              _buildActionButton(
+                icon: Icons.share,
+                label: 'Share',
+                onTap: widget.onShare,
+                bgColor: buttonBgColor,
+                iconColor: iconColor,
+                textColor: textColor,
+              ),
+            _buildActionButton(
+              icon: Icons.compare_arrows,
+              label: 'Compare',
+              onTap: _showComparisonDialog,
+              bgColor: buttonBgColor,
+              iconColor: iconColor,
+              textColor: textColor,
+            ),
+            _buildActionButton(
+              icon: Icons.info_outline,
+              label: 'Details',
+              onTap: _showTimezoneDetails,
+              bgColor: buttonBgColor,
+              iconColor: iconColor,
+              textColor: textColor,
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+      ],
     );
   }
 
@@ -213,180 +408,55 @@ class _TimezoneCardState extends State<TimezoneCard> {
     final others =
         _controller.selectedTimezones.where((tz) => tz != selected).toList();
 
+    if (others.isEmpty) {
+      Get.snackbar(
+        'No other timezones',
+        'Add more timezones to compare',
+        snackPosition: SnackPosition.BOTTOM,
+        backgroundColor: Theme.of(context).colorScheme.primaryContainer,
+        colorText: Theme.of(context).colorScheme.onPrimaryContainer,
+      );
+      return;
+    }
+
     Get.dialog(
       Dialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        elevation: 0,
-        backgroundColor: Colors.transparent,
-        child: Container(
+        backgroundColor: Theme.of(context).colorScheme.surface,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        child: Padding(
           padding: const EdgeInsets.all(20),
-          decoration: BoxDecoration(
-            color: Theme.of(context).cardColor,
-            borderRadius: BorderRadius.circular(20),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.1),
-                blurRadius: 20,
-                spreadRadius: 5,
-              ),
-            ],
-          ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    'Time Comparison',
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.w600,
-                      color: Theme.of(context).primaryColor,
-                    ),
-                  ),
-                  IconButton(
-                    icon: Icon(Icons.close, color: Colors.grey.shade600),
-                    onPressed: () => Get.back(),
-                  ),
-                ],
+              Text(
+                'Time Comparison',
+                style: Theme.of(
+                  context,
+                ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
               ),
-              const SizedBox(height: 16),
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: Theme.of(context).primaryColor.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Row(
+              const SizedBox(height: 20),
+              SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(
-                      Icons.location_on,
-                      color: Theme.of(context).primaryColor,
-                    ),
-                    const SizedBox(width: 12),
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          selected.city,
-                          style: const TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 16,
-                          ),
-                        ),
-                        Text(
-                          'UTC ${selected.utcOffset >= 0 ? '+' : ''}${selected.utcOffset}',
-                          style: TextStyle(
-                            color: Colors.grey.shade600,
-                            fontSize: 14,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const Spacer(),
-                    Text(
-                      DateFormat('hh:mm a').format(selected.currentTime),
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        color: Theme.of(context).primaryColor,
-                      ),
-                    ),
+                    _buildComparisonItem(selected, null, true),
+                    const SizedBox(height: 16),
+                    ...others.map((tz) => _buildComparisonItem(tz, selected)),
                   ],
                 ),
               ),
               const SizedBox(height: 20),
-              ...others.map((tz) {
-                final diff = tz.utcOffset - selected.utcOffset;
-                final sign = diff >= 0 ? '+' : '';
-                final isDayTime =
-                    tz.currentTime.hour >= 6 && tz.currentTime.hour <= 18;
-
-                return Container(
-                  margin: const EdgeInsets.only(bottom: 12),
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: Theme.of(context).cardColor,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: Colors.grey.shade300, width: 1),
-                  ),
-                  child: Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          color:
-                              isDayTime
-                                  ? Colors.orange.shade100
-                                  : Colors.indigo.shade100,
-                          shape: BoxShape.circle,
-                        ),
-                        child: Icon(
-                          isDayTime ? Icons.wb_sunny : Icons.nightlight_round,
-                          color:
-                              isDayTime
-                                  ? Colors.orange.shade600
-                                  : Colors.indigo.shade600,
-                          size: 20,
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              tz.city,
-                              style: const TextStyle(
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                            Text(
-                              '${sign}${diff} hrs vs ${selected.city}',
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: Colors.grey.shade600,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.end,
-                        children: [
-                          Text(
-                            DateFormat('hh:mm a').format(tz.currentTime),
-                            style: const TextStyle(fontWeight: FontWeight.bold),
-                          ),
-                          Text(
-                            'UTC ${tz.utcOffset >= 0 ? '+' : ''}${tz.utcOffset}',
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: Colors.grey.shade500,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                );
-              }).toList(),
-              const SizedBox(height: 16),
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Theme.of(context).primaryColor,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),
                     ),
                     padding: const EdgeInsets.symmetric(vertical: 16),
                   ),
                   onPressed: () => Get.back(),
-                  child: const Text(
-                    'Close',
-                    style: TextStyle(color: Colors.white),
-                  ),
+                  child: const Text('Close'),
                 ),
               ),
             ],
@@ -396,29 +466,262 @@ class _TimezoneCardState extends State<TimezoneCard> {
     );
   }
 
+  Widget _buildComparisonItem(
+    TimezoneModel tz,
+    TimezoneModel? reference, [
+    bool isReference = false,
+  ]) {
+    final theme = Theme.of(context);
+    final isDayTime = tz.isDaytime;
+    final timeDifference =
+        reference != null ? tz.timeDifferenceFrom(reference) : '';
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      margin: const EdgeInsets.only(bottom: 12),
+      decoration: BoxDecoration(
+        color:
+            isReference
+                ? theme.colorScheme.primaryContainer
+                : theme.colorScheme.surfaceVariant,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 8,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          // Day/Night Indicator
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color:
+                  isDayTime ? Colors.orange.shade100 : Colors.indigo.shade100,
+              shape: BoxShape.circle,
+            ),
+            child: Icon(
+              isDayTime ? Icons.wb_sunny : Icons.nightlight_round,
+              color:
+                  isDayTime ? Colors.orange.shade600 : Colors.indigo.shade600,
+              size: 20,
+            ),
+          ),
+          const SizedBox(width: 16),
+
+          // Location Info
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  tz.city,
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                    color:
+                        isReference
+                            ? theme.colorScheme.onPrimaryContainer
+                            : theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+                if (reference != null)
+                  Text(
+                    '$timeDifference from ${reference.city}',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color:
+                          isReference
+                              ? theme.colorScheme.onPrimaryContainer
+                                  .withOpacity(0.8)
+                              : theme.colorScheme.onSurfaceVariant.withOpacity(
+                                0.7,
+                              ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+
+          // Time Display
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text(
+                tz.formattedTime(),
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 16,
+                  color:
+                      isReference
+                          ? theme.colorScheme.onPrimaryContainer
+                          : theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+              Text(
+                tz.formattedUtcOffset(),
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color:
+                      isReference
+                          ? theme.colorScheme.onPrimaryContainer.withOpacity(
+                            0.8,
+                          )
+                          : theme.colorScheme.onSurfaceVariant.withOpacity(0.7),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showTimezoneDetails() {
+    final tz = widget.timezone;
+    final theme = Theme.of(context);
+
+    Get.bottomSheet(
+      Container(
+        padding: const EdgeInsets.all(24),
+        decoration: BoxDecoration(
+          color: theme.colorScheme.surface,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.2),
+              blurRadius: 20,
+              spreadRadius: 2,
+            ),
+          ],
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Center(
+              child: Container(
+                width: 48,
+                height: 6,
+                margin: const EdgeInsets.only(bottom: 16),
+                decoration: BoxDecoration(
+                  color: theme.dividerColor,
+                  borderRadius: BorderRadius.circular(3),
+                ),
+              ),
+            ),
+            Text(
+              'Timezone Details',
+              style: theme.textTheme.titleLarge?.copyWith(
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 24),
+            _buildDetailRow(Icons.location_city, 'City', tz.city),
+            _buildDetailRow(Icons.public, 'Timezone', tz.timezone),
+            _buildDetailRow(Icons.flag, 'Country', tz.country),
+            _buildDetailRow(
+              Icons.access_time,
+              'UTC Offset',
+              tz.formattedUtcOffset(),
+            ),
+            _buildDetailRow(
+              Icons.timelapse,
+              'Local Time',
+              tz.formattedTimeWithSeconds(),
+            ),
+            _buildDetailRow(
+              Icons.calendar_today,
+              'Date',
+              tz.formattedFullDate(),
+            ),
+            const SizedBox(height: 24),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                onPressed: () => Get.back(),
+                child: const Text('Close'),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDetailRow(IconData icon, String label, String value) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 12),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: theme.colorScheme.primary.withOpacity(0.1),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(icon, size: 20, color: theme.colorScheme.primary),
+          ),
+          const SizedBox(width: 16),
+          Text(
+            label,
+            style: TextStyle(
+              fontWeight: FontWeight.w600,
+              color: theme.colorScheme.onSurface.withOpacity(0.8),
+            ),
+          ),
+          const Spacer(),
+          Text(
+            value,
+            style: TextStyle(
+              fontWeight: FontWeight.w500,
+              color: theme.colorScheme.onSurface,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildActionButton({
     required IconData icon,
     required String label,
     required VoidCallback? onTap,
+    required Color bgColor,
+    required Color iconColor,
+    required Color textColor,
   }) {
-    return InkWell(
-      borderRadius: BorderRadius.circular(8),
-      onTap: onTap,
-      child: Padding(
-        padding: const EdgeInsets.all(8.0),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 20, color: Theme.of(context).primaryColor),
-            const SizedBox(height: 4),
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 12,
-                color: Theme.of(context).textTheme.labelSmall?.color,
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(12),
+            color: bgColor,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 24, color: iconColor),
+              const SizedBox(height: 8),
+              Text(
+                label,
+                style: Theme.of(
+                  context,
+                ).textTheme.labelLarge?.copyWith(color: textColor),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

@@ -13,6 +13,8 @@ class ThemeService extends GetxService {
     return this;
   }
 
+ 
+
   ThemeMode get themeMode =>
       isDarkMode.value ? ThemeMode.dark : ThemeMode.light;
 
@@ -22,4 +24,5 @@ class ThemeService extends GetxService {
     await prefs.setBool(_key, isDarkMode.value);
     Get.changeThemeMode(themeMode);
   }
+  
 }
